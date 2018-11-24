@@ -37,7 +37,9 @@ namespace g2o {
 
 
   typedef Matrix<double, 6, 1> Vector6d;
-
+  typedef Matrix<double, 16> Vector16d; //for maxvector
+  //qw, qx, qy, qz, px, py, pz, vx, vy, vz, b
+  typedef Matrix<double, 15> Vector15d; //For minimal vector
 
 /** This class holds velocity information as well as pose information.
  *It is priamrily used for holding the preintegral values for imu integration.
@@ -82,6 +84,7 @@ namespace g2o {
 
     	  return *this;
       }
+      inline Vector
 
       /**
        * \brief increment with the

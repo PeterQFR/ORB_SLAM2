@@ -120,6 +120,10 @@ cv::Mat KeyFrame::GetTranslation()
     return Tcw.rowRange(0,3).col(3).clone();
 }
 
+void KeyFrame::SetImuMeasurements(const std::vector<ImuData>& imu){
+	imuData = imu;
+}
+
 void KeyFrame::AddConnection(KeyFrame *pKF, const int &weight)
 {
     {

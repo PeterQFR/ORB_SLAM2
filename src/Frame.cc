@@ -258,6 +258,16 @@ void Frame::SetPose(cv::Mat Tcw)
     UpdatePoseMatrices();
 }
 
+void Frame::addImuMeasurement(const ImuData& imu)
+{
+	mImuData.push_back(imu);
+
+}
+
+void Frame::addImuMeasurements(const std::vector<ImuData>& imuVector){
+	mImuData.insert(mImuData.end(), imuVector.begin(), imuVector.end());
+}
+
 void Frame::UpdatePoseMatrices()
 { 
     mRcw = mTcw.rowRange(0,3).colRange(0,3);
@@ -677,6 +687,18 @@ cv::Mat Frame::UnprojectStereo(const int &i)
     }
     else
         return cv::Mat();
+}
+
+void Frame::setLastFrame(const Frame* lastFrame)
+{
+	mLastFrame = lastFrame;
+}
+
+cv::Mat Frame::getLastFramePose(){
+	if (mLastFrame != 0)
+		mLastFrame->mTcw;
+	else
+		return cv::Mat::eye(4,4,CV_32F);
 }
 
 } //namespace ORB_SLAM

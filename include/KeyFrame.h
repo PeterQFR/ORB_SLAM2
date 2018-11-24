@@ -28,6 +28,7 @@
 #include "ORBextractor.h"
 #include "Frame.h"
 #include "KeyFrameDatabase.h"
+#include "Inertial.h"
 
 #include <mutex>
 
@@ -116,6 +117,8 @@ public:
         return pKF1->mnId<pKF2->mnId;
     }
 
+    void SetImuMeasurements(const std::vector<ImuData>& imu);
+
 
     // The following variables are accesed from only 1 thread or never change (no mutex needed).
 public:
@@ -165,6 +168,10 @@ public:
     const std::vector<float> mvuRight; // negative value for monocular points
     const std::vector<float> mvDepth; // negative value for monocular points
     const cv::Mat mDescriptors;
+
+    //Imu Measurements since parent keyframe
+    std::vector<ImuData> imuData;
+
 
     //BoW
     DBoW2::BowVector mBowVec;

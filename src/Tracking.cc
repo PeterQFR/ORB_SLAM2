@@ -202,7 +202,47 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRe
 
     return mCurrentFrame.mTcw.clone();
 }
+cv::Mat Tracking::GrabImageStereoAndInertial(const cv::Mat &imRectLeft,
+    		const cv::Mat &imRectRight, const double &timestamp,
+    		const std::vector<ImuData>& imudata)
+{
+    mImGray = imRectLeft;
+    cv::Mat imGrayRight = imRectRight;
 
+    if(mImGray.channels()==3)
+    {
+        if(mbRGB)
+        {
+            cvtColor(mImGray,mImGray,CV_RGB2GRAY);
+            cvtColor(imGrayRight,imGrayRight,CV_RGB2GRAY);
+        }
+        else
+        {
+            cvtColor(mImGray,mImGray,CV_BGR2GRAY);
+            cvtColor(imGrayRight,imGrayRight,CV_BGR2GRAY);
+        }
+    }
+    else if(mImGray.channels()==4)
+    {
+        if(mbRGB)
+        {
+            cvtColor(mImGray,mImGray,CV_RGBA2GRAY);
+            cvtColor(imGrayRight,imGrayRight,CV_RGBA2GRAY);
+        }
+        else
+        {
+            cvtColor(mImGray,mImGray,CV_BGRA2GRAY);
+            cvtColor(imGrayRight,imGrayRight,CV_BGRA2GRAY);
+        }
+    }
+
+    mCurrentFrame = Frame(mImGray,imGrayRight,timestamp,mpORBextractorLeft,mpORBextractorRight,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+    mCurrentFrame.addImuMeasurements(imudata);
+    Track();
+
+    return mCurrentFrame.mTcw.clone();
+
+}
 
 cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp)
 {
@@ -257,8 +297,9 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
     if(mState==NOT_INITIALIZED || mState==NO_IMAGES_YET)
         mCurrentFrame = Frame(mImGray,timestamp,mpIniORBextractor,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
     else
+    {
         mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
-
+    }
     Track();
 
     return mCurrentFrame.mTcw.clone();
@@ -306,6 +347,7 @@ void Tracking::Track()
 
                 if(mVelocity.empty() || mCurrentFrame.mnId<mnLastRelocFrameId+2)
                 {
+                	//TODO: Track reference key frame
                     bOK = TrackReferenceKeyFrame();
                 }
                 else
@@ -512,6 +554,8 @@ void Tracking::StereoInitialization()
     {
         // Set Frame pose to the origin
         mCurrentFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
+
+        //No need for imu measurements here they will be added on J frames
 
         // Create KeyFrame
         KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
@@ -758,7 +802,7 @@ bool Tracking::TrackReferenceKeyFrame()
 {
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
-
+    mCurrentFrame.setLastFrame(&mLastFrame);
     // We perform first an ORB matching with the reference keyframe
     // If enough matches are found we setup a PnP solver
     ORBmatcher matcher(0.7,true);
@@ -872,6 +916,7 @@ bool Tracking::TrackWithMotionModel()
     // Create "visual odometry" points if in Localization Mode
     UpdateLastFrame();
 
+    mCurrentFrame.setLastFrame(&mLastFrame);
     mCurrentFrame.SetPose(mVelocity*mLastFrame.mTcw);
 
     fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));

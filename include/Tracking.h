@@ -37,11 +37,14 @@
 #include "Initializer.h"
 #include "MapDrawer.h"
 #include "System.h"
+#include "Inertial.h"
 
 #include <mutex>
 
 namespace ORB_SLAM2
 {
+
+
 
 class Viewer;
 class FrameDrawer;
@@ -73,6 +76,13 @@ public:
 
     // Use this function if you have deactivated local mapping and you only want to localize the camera.
     void InformOnlyTracking(const bool &flag);
+
+    //Adds Imu measurements to the current Frame
+    cv::Mat GrabImageStereoAndInertial(const cv::Mat &imRectLeft,
+    		const cv::Mat &imRectRight, const double &timestamp,
+    		const std::vector<ImuData>& imudata);
+
+
 
 
 public:

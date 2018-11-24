@@ -21,7 +21,7 @@
 #ifndef FRAME_H
 #define FRAME_H
 
-#include<vector>
+#include <vector>
 
 #include "MapPoint.h"
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
@@ -29,6 +29,7 @@
 #include "ORBVocabulary.h"
 #include "KeyFrame.h"
 #include "ORBextractor.h"
+#include "Inertial.h"
 
 #include <opencv2/opencv.hpp>
 
@@ -98,6 +99,13 @@ public:
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
 
+    // Adds an imu measuremnt to the frame.
+    void addImuMeasurement(const ImuData& imu);
+    void addImuMeasurements(const std::vector<ImuData>& imuVector);
+
+    // Set Pointer to the last Frame;
+    void setLastFrame(const Frame* lastFrame);
+    cv::Mat getLastFramePose();
 public:
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
@@ -141,6 +149,9 @@ public:
     // "Monocular" keypoints have a negative value.
     std::vector<float> mvuRight;
     std::vector<float> mvDepth;
+
+    //Imu Measurements
+    std::vector<ImuData> mImuData;
 
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
@@ -189,6 +200,8 @@ public:
 
 
 private:
+
+    Frame* mLastFrame;
 
     // Undistort keypoints given OpenCV distortion parameters.
     // Only for the RGB-D case. Stereo must be already rectified!

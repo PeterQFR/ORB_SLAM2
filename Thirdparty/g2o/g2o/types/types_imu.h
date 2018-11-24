@@ -53,47 +53,7 @@ using namespace Eigen;
 typedef Matrix<double, 6, 6> Matrix6d;
 typedef Vector<doulbe, 1, 15> Vector15d;
 
-/**
- * \brief SE3 Vertex parameterized internally with a transformation matrix
- and externally with its exponential map
- */
-class  VertexSI3 : public BaseVertex<16, SI3Quat>{
-public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  VertexSI3();
-
-  bool read(std::istream& is);
-
-  bool write(std::ostream& os) const;
-
-  virtual void setToOriginImpl() {
-    _estimate._t = SE3Quat();
-    _estimate._ba = Vector3d::Zero();
-    _estimate._bw = Vector3d::Zero();
-    _estimate._v = Vector3d::Zero();
-  }
-
-  //Provide an update of the Vertex by applying a small movement in various
-  //Direction of type SI3. This Update is the minimal representation
-  //ie quaternion axis and vector3 for velocity and position.
-  //Update for bias is a 3d vector for each accleration and gyro.
-  virtual void oplusImpl(const double* update_)  {
-
-	Eigen::Map<const Vector15d> update(update_);
-	SE3Quat se3Q = SE3Quat::exp(update.block(0,0,1,6))*estimate()._t;
-
-	Vector3d v = estimate()._v + update.block(0, 6, 1,3);
-	Vector3d ba = estimate()._ba + update.block(0, 9, 1, 3);
-	Vector3d bw = estimate()._bw + update.block(0, 12, 1, 3);
-
-	SI3Quat si3(se3Q, v, ba, bw);
-
-	setEstimate(si3);
-
-  }
-
-};
 
 class VertexVelocity : public BaseVertex<3, Vector3d>
 {
@@ -150,7 +110,7 @@ public:
  * The Measurement that is used is the preintegral from imu data
  * containing Pose, Velocity and Bias.
  */
-class EdgeImuUpdate : public BaseMultiEdge<6, SI3Quat>
+class EdgeImuUpdate : public BaseMultiEdge<15, SI3Quat>
 {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -204,9 +164,26 @@ public:
 		Vector6d eB = static_cast<const VertexBias*>(_vertices[2])->getEstimateData() -
 				static_cast<const VertexBias*>(_vertices[5])->getEstimateData();
 
-		SI3Quat residual(Quaterniond(skew(eR)), eP, eV, eB.block(0,0,1,3),
-				eB.block(0,3,1,3));
+		//SI3Quat residual(Quaterniond(skew(eR)), eP, eV, eB.block(0,0,1,3),
+		//		eB.block(0,3,1,3));
+		_error[0] = eR[0];
+		_error[1] = eR[1];
+		_error[2] = eR[2];
 
+		_error[3] = eP[0];
+		_error[4] = eP[1];
+		_error[5] = eP[2];
+
+		_error[6] = eV[0];
+		_error[7] = eV[1];
+		_error[8] = eV[2];
+
+		_error[9] = eB[0];
+		_error[10] = eB[1];
+		_error[11] = eB[2];
+		_error[12] = eB[3];
+		_error[13] = eB[4];
+		_error[14] = eB[5];
 	}
 
 	/**
