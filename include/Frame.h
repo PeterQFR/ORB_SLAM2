@@ -103,9 +103,16 @@ public:
     void addImuMeasurement(const ImuData& imu);
     void addImuMeasurements(const std::vector<ImuData>& imuVector);
 
+    Eigen::Vector3d getVelocityEstimate();
+    void setVelocityEstimate(const Eigen::Vector3d& worldvelocity);
+
+    void getImuBias(Eigen::Vector3d& accelbias, Eigen::Vector3d& gyrobias);
+    void setImuBias(const Eigen::Vector3d& accelBias, const Eigen::Vector3d& gyroBias);
+
     // Set Pointer to the last Frame;
-    void setLastFrame(const Frame* lastFrame);
+    void setLastFrame(Frame* lastFrame);
     cv::Mat getLastFramePose();
+    Frame getLastFrame();
 public:
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
@@ -152,6 +159,9 @@ public:
 
     //Imu Measurements
     std::vector<ImuData> mImuData;
+    Eigen::Vector3d mVelocityWorld;
+    Eigen::Vector3d mBiasGyro;
+    Eigen::Vector3d mBiasAccel;
 
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;

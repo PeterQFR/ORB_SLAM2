@@ -28,7 +28,7 @@
 #define G2O_SI3QUAT_H_
 
 
-
+#include "si3_ops.h"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
@@ -37,9 +37,9 @@ namespace g2o {
 
 
   typedef Matrix<double, 6, 1> Vector6d;
-  typedef Matrix<double, 16> Vector16d; //for maxvector
+  typedef Matrix<double, 16, 1> Vector16d; //for maxvector
   //qw, qx, qy, qz, px, py, pz, vx, vy, vz, b
-  typedef Matrix<double, 15> Vector15d; //For minimal vector
+ // typedef Matrix<double, 15, 1> Vector15d; //For minimal vector
 
 /** This class holds velocity information as well as pose information.
  *It is priamrily used for holding the preintegral values for imu integration.
@@ -56,8 +56,12 @@ namespace g2o {
       Vector3d _bw;
       Vector3d _ba;
     public:
-      SI3Quat(){
+      SI3Quat():
+      _bw(0,0,0),
+	  _ba(0,0,0)
+    {
         _v.setZero();
+
 
       }
 
@@ -74,7 +78,7 @@ namespace g2o {
       inline SI3Quat operator* (const SI3Quat& tr2) const{
     	  SI3Quat result(*this);
     	  result._t *= tr2._t;
-    	  result._v *= tr2.v;
+    	  result._v *= tr2._v;
     	  return result;
       }
 
@@ -84,18 +88,18 @@ namespace g2o {
 
     	  return *this;
       }
-      inline Vector
+      //inline Vector
 
       /**
        * \brief increment with the
        */
-      inline SI3Quat operator* (const Vector6d& aw, const double& dt) const {
+     /* inline SI3Quat increment (const Vector6d& ag, const double& dt) const {
     	  Vector3d a = ag.block(0,0,1,3);
     	  Vector3d w = ag.block(0,3,1,3);
     	  SI3Quat deltaParts = preIntegrate(a, w, dt);
     	  *this*=deltaParts;
     	  return *this;
-      }
+      }*/
 
       inline SI3Quat inverse() const{
     	  SI3Quat ret;
@@ -103,6 +107,13 @@ namespace g2o {
     	  ret._v=-_v;
     	  return ret;
       }
+      inline const Vector3d& translation() const {return _t.translation();}
+
+      inline void setTranslation(const Vector3d& t_) {_t.setTranslation(t_);}
+
+      inline const Quaterniond& rotation() const {return _t.rotation();}
+
+      void setRotation(const Quaterniond& r_) {_t.setRotation(r_);}
 
 
       /**
@@ -115,8 +126,8 @@ namespace g2o {
     	  Vector3d bw = this->_bw;
     	  Vector3d ba = this->_ba;
     	  Vector3d g(0.0, 0.0, -9.8);
-    	  Quaterniond deltaQ= zeroOrderIntegrator((w - bw)*dt)*Quaterniond::Identity();
-    	  Vector3d accelIntegral = this->_t._r.toRotationMatrix * (a-ba)*dt;
+    	  Quaterniond deltaQ(skew((w - bw)*dt));
+    	  Vector3d accelIntegral = this->_t.rotation().toRotationMatrix()* (a-ba)*dt;
     	  Vector3d gravityIntegral = g*dt;
     	  Vector3d deltaV = accelIntegral + gravityIntegral;
 
@@ -134,9 +145,9 @@ namespace g2o {
 
   };
 
-  inline std::ostream& operator <<(std::ostream& out_str, const SE3Quat& se3)
+  inline std::ostream& operator <<(std::ostream& out_str, const SI3Quat& se3)
   {
-    out_str << se3.to_homogeneous_matrix()  << std::endl;
+    //out_str << se3.to_homogeneous_matrix()  << std::endl;
     return out_str;
   }
 

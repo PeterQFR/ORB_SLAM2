@@ -688,17 +688,44 @@ cv::Mat Frame::UnprojectStereo(const int &i)
     else
         return cv::Mat();
 }
+Eigen::Vector3d Frame::getVelocityEstimate()
+{
+	 return mVelocityWorld;
 
-void Frame::setLastFrame(const Frame* lastFrame)
+}
+
+void Frame::setVelocityEstimate(const Eigen::Vector3d& v)
+{
+	mVelocityWorld = v;
+}
+
+void Frame::getImuBias(Eigen::Vector3d& accelbias, Eigen::Vector3d& gyrobias)
+{
+	accelbias = mBiasGyro;
+	gyrobias = mBiasAccel;
+}
+
+void Frame::setImuBias(const Eigen::Vector3d& accelBias, const Eigen::Vector3d& gyroBias)
+{
+	mBiasGyro = gyroBias;
+	mBiasAccel = accelBias;
+}
+
+void Frame::setLastFrame(Frame* lastFrame)
 {
 	mLastFrame = lastFrame;
 }
 
 cv::Mat Frame::getLastFramePose(){
 	if (mLastFrame != 0)
-		mLastFrame->mTcw;
+		return mLastFrame->mTcw;
 	else
 		return cv::Mat::eye(4,4,CV_32F);
+}
+
+Frame Frame::getLastFrame()
+{
+	return *mLastFrame;
 }
 
 } //namespace ORB_SLAM

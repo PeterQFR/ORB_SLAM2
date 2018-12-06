@@ -250,12 +250,30 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
     int nInitialCorrespondences=0;
 
-    // Set Frame vertex
-    g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
-    vSE3->setEstimate(Converter::toSE3Quat(pFrame->mTcw));
-    vSE3->setId(0);
-    vSE3->setFixed(false);
-    optimizer.addVertex(vSE3);
+    // Set I Frame Vertex -- lastFrame
+    g2o::VertexSE3Expmap * vSE3i = new g2o::VertexSE3Expmap();
+    vSE3i->setEstimate(Converter::toSE3Quat(pFrame->getLastFramePose()));
+    vSE3i->setId(0);
+    vSE3i->setFixed(true); //This is otherwise not constrained and other constraints to be relative to this.
+    optimizer.addVertex(vSE3i);
+
+    g2o::VertexVelocity * vVeli = new g2o::VertexVelocity();
+    vVeli->setEstimate(pFrame->getLastFrame().getVelocityEstimate());
+    vVeli->setId(2);
+    vVeli->setFixed(true);
+    optimizer.addVertex(vVeli);
+
+    g2o::VertexBias* vBiasi = new g2o::VertexBias();
+    //vBiasi->
+
+    // Set J Frame vertex
+    g2o::VertexSE3Expmap * vSE3j = new g2o::VertexSE3Expmap();
+    vSE3j->setEstimate(Converter::toSE3Quat(pFrame->mTcw));
+    vSE3j->setId(1);
+    vSE3j->setFixed(false);
+    optimizer.addVertex(vSE3j);
+
+
 
     // Set MapPoint vertices
     const int N = pFrame->N;
@@ -294,7 +312,7 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
                 g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
 
-                e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));
                 e->setMeasurement(obs);
                 const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
                 e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
@@ -330,7 +348,7 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
                 g2o::EdgeStereoSE3ProjectXYZOnlyPose* e = new g2o::EdgeStereoSE3ProjectXYZOnlyPose();
 
-                e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));
                 e->setMeasurement(obs);
                 const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
                 Eigen::Matrix3d Info = Eigen::Matrix3d::Identity()*invSigma2;
@@ -374,7 +392,7 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     for(size_t it=0; it<4; it++)
     {
 
-        vSE3->setEstimate(Converter::toSE3Quat(pFrame->mTcw));
+        vSE3j->setEstimate(Converter::toSE3Quat(pFrame->mTcw));
         optimizer.initializeOptimization(0);
         optimizer.optimize(its[it]);
 
@@ -440,6 +458,9 @@ int Optimizer::PoseOptimization(Frame *pFrame)
         if(optimizer.edges().size()<10)
             break;
     }    
+
+    //TODO: Set Velocity and bias Estimates to frame
+    //
 
     // Recover optimized pose and return number of inliers
     g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));

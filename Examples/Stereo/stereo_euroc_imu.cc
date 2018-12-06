@@ -24,9 +24,10 @@
 #include<fstream>
 #include<iomanip>
 #include<chrono>
+#include<string>
 
 #include<opencv2/core/core.hpp>
-
+#include<Inertial.h>
 #include<System.h>
 
 using namespace std;
@@ -34,11 +35,15 @@ using namespace std;
 void LoadImages(const string &strPathLeft, const string &strPathRight, const string &strPathTimes,
                 vector<string> &vstrImageLeft, vector<string> &vstrImageRight, vector<double> &vTimeStamps);
 
+void LoadInertialData(const string &imuPath,
+		vector<ORB_SLAM2::ImuData>& data);
+
+
 int main(int argc, char **argv)
 {
-    if(argc != 6)
+    if(argc != 7)
     {
-        cerr << endl << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings path_to_left_folder path_to_right_folder path_to_times_file" << endl;
+        cerr << endl << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings path_to_left_folder path_to_right_folder path_to_times_file path_to_imu_file" << endl;
         return 1;
     }
 
@@ -103,6 +108,12 @@ int main(int argc, char **argv)
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,true);
 
+    // Vector of imu data for use
+    vector<ORB_SLAM2::ImuData> imuData;
+    LoadInertialData(argv[6], imuData);
+
+
+
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
     vTimesTrack.resize(nImages);
@@ -113,6 +124,8 @@ int main(int argc, char **argv)
 
     // Main loop
     cv::Mat imLeft, imRight, imLeftRect, imRightRect;
+
+    int lastImuIdx=0;
     for(int ni=0; ni<nImages; ni++)
     {
         // Read left and right images from file
@@ -138,6 +151,19 @@ int main(int argc, char **argv)
 
         double tframe = vTimeStamp[ni];
 
+        vector<ORB_SLAM2::ImuData> frameImuData;
+        while(true)
+        {
+        	lastImuIdx++;
+        	if (imuData[lastImuIdx].time < tframe)
+        	{
+        		ORB_SLAM2::ImuData iData(imuData[lastImuIdx]);
+        		iData.time -= tframe;
+        		frameImuData.push_back(iData);
+        	}
+        	else
+        		break;
+        }
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
@@ -145,8 +171,8 @@ int main(int argc, char **argv)
         std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
 #endif
 
-        // Pass the images to the SLAM system
-        SLAM.TrackStereo(imLeftRect,imRightRect,tframe);
+        // Pass the images to the SLAM system plus relevant imudata
+        SLAM.TrackStereoInertial(imLeftRect,imRightRect,tframe, frameImuData);
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -177,7 +203,7 @@ int main(int argc, char **argv)
     float totaltime = 0;
     for(int ni=0; ni<nImages; ni++)
     {
-        totaltime+=vTimesTrack[ni];
+    	totaltime+=vTimesTrack[ni];
     }
     cout << "-------" << endl << endl;
     cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
@@ -187,6 +213,67 @@ int main(int argc, char **argv)
     SLAM.SaveTrajectoryTUM("CameraTrajectory.txt");
 
     return 0;
+}
+void LoadInertialData(const string &imuPath,
+		vector<ORB_SLAM2::ImuData>& data){
+	ifstream imuStream;
+
+	imuStream.open(imuPath.c_str());
+	int lineno=0;
+	while(!imuStream.eof())
+	{
+
+		string line;
+		getline(imuStream, line);
+		if (lineno > 0)
+		{
+			if(!line.empty())
+			{
+				stringstream ss(line);
+				ORB_SLAM2::ImuData d;
+				int column = 0;
+				while (ss.good())
+				{
+					string field;
+					getline(ss, field, ',');
+					//cout << field << endl;
+					switch(column)
+					{
+					case 0:
+						//timestamp
+						d.time = stod(field);
+						break;
+					case 1:
+						//wx
+						d.gyro[0] = stod(field);
+						break;
+					case 2:
+						//wy
+						d.gyro[1] = stod(field);
+						break;
+					case 3:
+						d.gyro[2] = stod(field);
+						break;
+					case 4:
+						d.accel[0] = stod(field);
+						break;
+					case 5:
+						d.accel[1] = stod(field);
+						break;
+					case 6:
+						d.accel[2] = stod(field);
+						break;
+					}
+
+					column++;
+				}
+				data.push_back(d);
+				//std::cout <<"New Measurement:\n" <<d.accel << std::endl << d.gyro <<endl << d.time<< endl;
+			}
+		}
+		lineno++;
+
+	}
 }
 
 void LoadImages(const string &strPathLeft, const string &strPathRight, const string &strPathTimes,
@@ -200,7 +287,7 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
     while(!fTimes.eof())
     {
         string s;
-        getline(fTimes,s);
+        getline(fTimes , s);
         if(!s.empty())
         {
             stringstream ss;

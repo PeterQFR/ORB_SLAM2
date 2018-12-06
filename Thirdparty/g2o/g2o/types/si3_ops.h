@@ -8,7 +8,7 @@
 #ifndef ORB_SLAM2_THIRDPARTY_G2O_G2O_TYPES_SI3_OPS_H_
 #define ORB_SLAM2_THIRDPARTY_G2O_G2O_TYPES_SI3_OPS_H_
 
-#include <se3_ops.h>
+#include "se3_ops.h"
 
 namespace g2o {
 	using namespace Eigen;
@@ -51,7 +51,7 @@ namespace g2o {
 		return unit*phi;
 	}
 
-	inline Matrix3d rightJacobian(const Vector3d& phi)
+	inline Matrix3d rightJacobian(const Vector3d& w)
 	  {
 
 		  double norm = w.norm();

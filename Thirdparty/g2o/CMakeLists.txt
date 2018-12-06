@@ -97,6 +97,10 @@ g2o/types/types_seven_dof_expmap.h
 g2o/types/se3quat.h
 g2o/types/se3_ops.h
 g2o/types/se3_ops.hpp
+g2o/types/types_imu.h
+g2o/types/types_imu.cpp
+g2o/types/si3_ops.h
+g2o/types/si3quat.h
 #core
 g2o/core/base_edge.h
 g2o/core/base_binary_edge.h
