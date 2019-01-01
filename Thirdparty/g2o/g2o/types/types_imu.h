@@ -55,7 +55,23 @@ using namespace Eigen;
 
 typedef Matrix<double, 6, 6> Matrix6d;
 typedef Matrix<double, 1, 15> Vector15d;
+typedef Matrix<double, 9, 9> Matrix9d;
+typedef Matrix<double, 9, 6> ControlMatrix;
 
+
+struct StateInfo {
+	g2o::SE3Quat pose;
+	Vector3d vel;
+	Vector3d bg;
+	Vector3d ba;
+	double stamp;
+};
+
+struct InertialMeasurement {
+	Vector3d gyro;
+	Vector3d acceleration;
+	double stamp;
+};
 
 
 class VertexVelocity : public BaseVertex<3, Vector3d>
@@ -63,16 +79,16 @@ class VertexVelocity : public BaseVertex<3, Vector3d>
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-	VertexVelocity():BaseVertex<3, Vector3d>(){};
+	VertexVelocity(): BaseVertex<3, Vector3d>(){};
 
-	virtual bool read(std::istream& is);
-	virtual bool write(std::ostream& os) const;
+	bool read(std::istream& is);
+	bool write(std::ostream& os) const;
 
-	virtual void setToOriginalImpl(){
+	virtual void setToOriginImpl(){
 		_estimate = Vector3d::Zero();
 	}
 
-	virtual void oplusImpl (double* update_){
+	virtual void oplusImpl (const double* update_){
 		Eigen::Map<const Vector3d> update(update_);
 
 		setEstimate(estimate() + update);
@@ -86,33 +102,36 @@ public:
 
 	VertexBias():BaseVertex<6, Vector6d>(){};
 
-	virtual bool read(std::istream& is);
-	virtual bool write(std::ostream& os) const;
+	bool read(std::istream& is);
+	bool write(std::ostream& os) const;
 
-	virtual void setToOriginalImpl(){
+
+	virtual void setToOriginImpl(){
 		_estimate = Vector6d::Zero();
 	};
 
-	virtual void oplusImpl (const double* update_){
+	virtual void oplusImpl(const double* update_){
 		Eigen::Map<const Vector6d> update(update_);
 		setEstimate(estimate() + update);
 	};
-
+public:
 	Vector3d getGyroBias( ) const {
-		return _estimate.block(0,3,1,3);
+		return _estimate.tail(3);
 	}
 
 	Vector3d getAccelBias() const {
-		return _estimate.block(0, 0, 1, 3);
+		return _estimate.head(3);
 	}
 
 	void setGyroBias(const Vector3d& bias){
-		_estimate.block(0,3,1,3) = bias;
+		_estimate.tail(3) = bias.head(3);
 	}
 	void setAccelBias(const Vector3d& bias)
 	{
-		_estimate.block(0, 0, 1, 3)=bias;
+		_estimate.head(3)=bias.head(3);
 	}
+
+
 };
 
 /**
@@ -126,12 +145,17 @@ public:
 
 	EdgeImuUpdate() :
 	BaseMultiEdge<15, SI3Quat>(),
-	_aJdp(0.0,0.0,0.0),
-	_gJdp(0.0,0.0,0.0),
-	_gJdv(0.0,0.0,0.0),
-	_aJdv(0.0,0.0,0.0),
-	_gJdR(0.0,0.0,0.0),
-	_dt(0.01)
+	_aJdp(Matrix3d::Zero()),
+	_gJdp(Matrix3d::Zero()),
+	_gJdv(Matrix3d::Zero()),
+	_aJdv(Matrix3d::Zero()),
+	_gJdR(Matrix3d::Zero()),
+	_dt(0.0),
+	_na(0.01),
+	_ng(0.001),
+	_nba(0.01),
+	_nbg(0.01),
+	_zetaNoise(Matrix6d::Zero())
 	{
 		//Verticies are a specific size. 6 verticies are added.
 		/**
@@ -144,7 +168,21 @@ public:
 		 * bj
 		 */
 		_vertices.resize(6);
+		resize(6);
+		setNoises(_ng, _na, _nba, _nbg);
 	};
+
+	void setNoises(const double& ng, const double& na,
+			const double& nba, const double& nbg)
+	{
+		_zetaNoise.block(0,0,3,3) =ng*Matrix3d::Identity();
+		_zetaNoise.block(3,3,3,3) = na*Matrix3d::Identity();
+
+
+		this->_information.block(9,9,3,3) = (1.0/nba)*Matrix3d::Identity();
+		this->_information.block(12,12,3,3) = (1.0/nbg)*Matrix3d::Identity();
+
+	}
 
 	bool read(std::istream& is);
 	bool write(std::ostream& os) const;
@@ -158,8 +196,6 @@ public:
 	    //SLAM with Map reuse.
 		SE3Quat xi = static_cast<const VertexSE3Expmap*>(_vertices[0])->estimate();
 		Vector3d vi = static_cast<const VertexVelocity*>(_vertices[1])->estimate();
-		Vector3d bgi = static_cast<const VertexBias*>(_vertices[2])->getGyroBias();
-		Vector3d bai = static_cast<const VertexBias*>(_vertices[2])->getAccelBias();
 
 		SE3Quat xj = static_cast<const VertexSE3Expmap*>(_vertices[3])->estimate();
 		Vector3d vj = static_cast<const VertexVelocity*>(_vertices[4])->estimate();
@@ -207,37 +243,53 @@ public:
 	 * a preintegral which is of type SI3Quat.
 	 * \param accel is a vector of accel measuremnts in m/S^2)
 	 * \param gyro is a vector of gyro measuremetns in rad/s
-	 * \param timeoffsets of the above measurements from the anchor time in seconds
+	 * \param dts the times the measurement is active from the previous measure
+	 * ment. The first measurement is the time since the anchor time.
 	 */
-	SI3Quat calculatePreIntegral(const std::vector<Vector3d>& accel,
+	void calculatePreIntegral(const std::vector<Vector3d>& accel,
 			const std::vector<Vector3d>& gyro,
-			const std::vector<double>& timeoffsets)
+			const std::vector<double>& dts)
 	{
+		assert(dts.size()>1);
 
-		assert(timeoffsets.size()>1);
-		_dt = *timeoffsets.end() - *timeoffsets.begin();
-		const VertexSE3Expmap* xi = static_cast<const VertexSE3Expmap*>(_vertices[0]);
+		const VertexSE3Expmap* xi = static_cast<const VertexSE3Expmap*>(
+				_vertices[0]);
 		const VertexBias* bi = static_cast<const VertexBias*>(_vertices[2]);
-		const VertexVelocity* vi = static_cast<const VertexVelocity*> (_vertices[1]);
+		const VertexVelocity* vi = static_cast<const VertexVelocity*> (
+				_vertices[1]);
 
-		SI3Quat anchor(xi->estimate().rotation(), xi->estimate().translation(), vi->estimate(),
-				bi->getAccelBias(), bi->getGyroBias());
+		SI3Quat anchor(xi->estimate().rotation(), xi->estimate().translation(),
+				vi->estimate(),
+				bi->getAccelBias(),
+				bi->getGyroBias());
 
-		for (int k =0; k< accel.size(); k++)
+		Matrix9d covariance = Matrix9d::Zero();
+		/**
+		 * the times are times that the measurement is from the
+		 */
+		for (unsigned int k =0; k< accel.size(); k++)
 		{
-			double dt;
-			if(k==0)
-				dt = timeoffsets[k];
-			else
-				dt = timeoffsets[k]-timeoffsets[k-1];
+			_dt += dts[k];
+			double dt = dts[k];
 			anchor.preIntegrate(accel[k], gyro[k], dt);
+
+
+			Matrix3d Rik = anchor.rotation().toRotationMatrix();
+
+			//Calculate the processNoise:
+			Matrix3d integrator = Rik*skew(accel[k] -bi->getAccelBias()) *dt;
+
+			covariance = covarianceMatrix(covariance,
+					calculateAMatrix(Rik, integrator, dt),
+					calculateBMatrix(Rik, rightJacobian(gyro[k]*0.01), dt));
+
 
 			//Here is a good place to now calculate the Jacobians for this
 			//step.
-			Matrix3d Rik = anchor.rotation().toRotationMatrix();
+
 			_gJdR += -(Rik.transpose()*rightJacobian(gyro[k]*0.01)*dt);
 
-			Matrix3d accelSkew = Rik*skew(accel[k] -bi->getAccelBias()) *_gJdR*dt;
+			Matrix3d accelSkew = integrator*_gJdR;
 
 			_aJdv += -(Rik*dt);
 			_gJdv += -(accelSkew);
@@ -246,8 +298,57 @@ public:
 
 		}
 
+		this->_information.block(0,0,9,9) = covariance.inverse();
 		this->setMeasurement(anchor);
+
+	};
+
+	/**
+	 * \brief calculate the simple information matrix based on appendix A of
+	 * D.Scarramuzza 2016, on manifold preintegration of real time visual inertial
+	 * odometry
+	 */
+	Matrix9d covarianceMatrix(const Matrix9d& zetabar1,
+			const Matrix9d& Amatrix,
+			const ControlMatrix& Bmatrix)
+	{
+		return Amatrix*zetabar1*Amatrix.transpose() +
+				Bmatrix*_zetaNoise*Bmatrix.transpose();
+	};
+
+
+protected:
+	Matrix9d calculateAMatrix(const Matrix3d& dR,
+			const Matrix3d integrator,
+			const double& dt)
+	{
+		Matrix9d Amatrix=Matrix9d::Identity();
+		//Matrix3d integrator = dR*skew(a-ba)*dt;
+
+		Amatrix.block(0,0,3,3) = dR.transpose();
+		Amatrix.block(3,0,3,3) = -integrator;
+		Amatrix.block(6,0,3,3) = -0.5*integrator*dt;
+		Amatrix.block(6,3,3,3) = dt*Matrix3d::Identity();
+		return Amatrix;
+
+
+	};
+
+	ControlMatrix calculateBMatrix(
+			const Matrix3d& dR,
+			const Matrix3d& Jr,
+			const double& dt)
+	{
+		ControlMatrix Bmatrix = ControlMatrix::Zero();
+		Matrix3d integral = dR*dt;
+		Bmatrix.block(0,0,3,3) = Jr*dt;
+		Bmatrix.block(3,3,3,3) = integral;
+		Bmatrix.block(6,3,3,3) = 0.5*dt*integral;
+
+		return Bmatrix;
+
 	}
+
 protected:
 	Matrix3d _aJdp;
 	Matrix3d _gJdp;
@@ -255,6 +356,10 @@ protected:
 	Matrix3d _aJdv;
 	Matrix3d _gJdR;
 	double _dt;
+
+	//Acceleration and gyro noises:
+	double _na, _ng, _nba, _nbg;
+	Matrix6d _zetaNoise;
 public:
 
 	/**
@@ -319,6 +424,11 @@ public:
 	    _error = bj->estimate() - bi->estimate() ;
 	};
 
+	void applyInformation(const double& nba, const double& nbg)
+	{
+		this->_information.block(0,0,3,3) = (1.0/nba)*Matrix3d::Identity();
+		this->_information.block(3,3,3,3) = (1.0/nbg)*Matrix3d::Identity();
+	}
 };
 
 } // end namespace

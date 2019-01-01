@@ -256,7 +256,7 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     vSE3i->setId(0);
     vSE3i->setFixed(true); //This is otherwise not constrained and other constraints to be relative to this.
     optimizer.addVertex(vSE3i);
-
+/*
     g2o::VertexVelocity * vVeli = new g2o::VertexVelocity();
     vVeli->setEstimate(pFrame->getLastFrame().getVelocityEstimate());
     vVeli->setId(2);
@@ -264,16 +264,40 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     optimizer.addVertex(vVeli);
 
     g2o::VertexBias* vBiasi = new g2o::VertexBias();
-    //vBiasi->
-
+    vBiasi->setGyroBias(pFrame->getLastFrame().mBiasGyro);
+    vBiasi->setAccelBias(pFrame->getLastFrame().mBiasAccel);
+    vBiasi->setId(3);
+    vBiasi->setFixed(true);
+    optimizer.addVertex(vBiasi);
+*/
     // Set J Frame vertex
     g2o::VertexSE3Expmap * vSE3j = new g2o::VertexSE3Expmap();
     vSE3j->setEstimate(Converter::toSE3Quat(pFrame->mTcw));
     vSE3j->setId(1);
     vSE3j->setFixed(false);
     optimizer.addVertex(vSE3j);
+/*
+    g2o::VertexVelocity * vVelj = new g2o::VertexVelocity();
+    vVelj->setEstimate(pFrame->getVelocityEstimate());
+    vVelj->setId(4);
+    vVelj->setFixed(false);
+    optimizer.addVertex(vVelj);
+    //TODO: populate the information matrix.
 
+    g2o::VertexBias * vBiasj = new g2o::VertexBias();
+    vBiasj->setGyroBias(pFrame->mBiasGyro);
+    vBiasj->setAccelBiase(pFrame->mBiasAccel);
+    vBiasj->setId(5);
+    vBiasj->setFixed(false);
+    optimizer.addVertex(vBiasj);
+    //TODO: populate the information matrix
 
+    //set edgees
+    g2o::EdgeBiasUpdate* imuBiasEdge = new g2o::EdgeBiasUpdate();
+    imuBiasEdge->setVertex(0,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(3)));
+    imuBiasEdge->setVertex(1,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(5)));
+    imuBiasEdge->setInformation
+*/
 
     // Set MapPoint vertices
     const int N = pFrame->N;

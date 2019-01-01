@@ -110,6 +110,7 @@ public:
 };
 
 
+
 class  EdgeStereoSE3ProjectXYZ: public  BaseBinaryEdge<3, Vector3d, VertexSBAPointXYZ, VertexSE3Expmap>{
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -139,6 +140,28 @@ public:
   Vector3d cam_project(const Vector3d & trans_xyz, const float &bf) const;
 
   double fx, fy, cx, cy, bf;
+};
+
+class EdgeSE3XYZOnlyPose: public BaseUnaryEdge<3, Vector3d, VertexSE3Expmap>
+{
+public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+	EdgeSE3XYZOnlyPose(){};
+
+
+	bool read(std::istream& is);
+
+	bool write(std::ostream& os) const;
+
+	void computeError()  {
+		const VertexSE3Expmap* v1 = static_cast<const VertexSE3Expmap*>(_vertices[0]);
+		Vector3d obs(_measurement);
+		_error = obs-v1->estimate().translation();
+	};
+
+
+
 };
 
 class  EdgeSE3ProjectXYZOnlyPose: public  BaseUnaryEdge<2, Vector2d, VertexSE3Expmap>{

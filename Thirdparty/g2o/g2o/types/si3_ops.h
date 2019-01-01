@@ -34,6 +34,8 @@ namespace g2o {
 	inline Matrix3d exp(const Vector3d& wdt)
 	{
 		double length = wdt.norm();
+		if (fabs(length) < 1e-6)
+			length=1.0;
 		Vector3d unit = wdt/length;
 		Matrix3d skewMatrix = skew(unit);
 		return Matrix3d::Identity()*cos(length) + sin(length) * skewMatrix +
@@ -52,15 +54,19 @@ namespace g2o {
 	}
 
 	inline Matrix3d rightJacobian(const Vector3d& w)
-	  {
+	{
 
-		  double norm = w.norm();
-		  double invnorm = 1.0/norm;
-		  Matrix3d sk=skew(w);
-		  return Matrix3d::Identity() - (1 - cos(norm))*(invnorm*invnorm)*sk
-				  + ((norm - sin(norm))*sk*sk)*(invnorm*invnorm*invnorm);
+		double norm = w.norm();
+		if (fabs(norm) <  1e-6)
+			norm=1.0;
 
-	  }
+		double invnorm = 1.0/norm;
+		Matrix3d sk=skew(w);
+
+		return Matrix3d::Identity() - (1 - cos(norm))*(invnorm*invnorm)*sk
+				+ ((norm - sin(norm))*sk*sk)*fabs(invnorm*invnorm*invnorm);
+
+	}
 
 
 }

@@ -29,8 +29,10 @@
 
 
 #include "si3_ops.h"
+#include "se3quat.h"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <iostream>
 
 namespace g2o {
   using namespace Eigen;
@@ -57,8 +59,8 @@ namespace g2o {
       Vector3d _ba;
     public:
       SI3Quat():
-      _bw(0,0,0),
-	  _ba(0,0,0)
+      _ba(0,0,0),
+	  _bw(0,0,0)
     {
         _v.setZero();
 
@@ -78,13 +80,13 @@ namespace g2o {
       inline SI3Quat operator* (const SI3Quat& tr2) const{
     	  SI3Quat result(*this);
     	  result._t *= tr2._t;
-    	  result._v *= tr2._v;
+    	  result._v += tr2._v;
     	  return result;
       }
 
       inline SI3Quat& operator*= (const SI3Quat& tr2){
     	  _t*=tr2._t;
-    	  _v*=tr2._v;
+    	  _v+=tr2._v;
 
     	  return *this;
       }
@@ -115,6 +117,7 @@ namespace g2o {
 
       void setRotation(const Quaterniond& r_) {_t.setRotation(r_);}
 
+      inline SE3Quat getPose() {return _t;};
 
       /**
        * \brief this method determines the preintegral of SE2Quat plus velocity
@@ -126,8 +129,20 @@ namespace g2o {
     	  Vector3d bw = this->_bw;
     	  Vector3d ba = this->_ba;
     	  Vector3d g(0.0, 0.0, -9.8);
-    	  Quaterniond deltaQ(skew((w - bw)*dt));
+    	  Vector3d wreal = w - bw;
+    	  double modw=wreal.norm();
+    	  if (fabs(modw) <  1e-9)
+    		  modw=1.0;
+
+    	  //std::cout << "Modw " << modw << "Norma " << wreal/modw << "Wreal "<< wreal<<std::endl;
+    	  double angle = cos(modw*dt/2.0);
+    	  Vector3d axis = (wreal/modw)*sin(modw*dt/2.0);
+    	  //std::cout << "angle " << angle << "\naxis "<<axis <<std::endl;
+    	  Quaterniond deltaQ(angle, axis.x(), axis.y(), axis.z());
+
+    	  //std::cout << "Quaternion Rot MAt: \n" << deltaQ.toRotationMatrix() << std::endl;
     	  Vector3d accelIntegral = this->_t.rotation().toRotationMatrix()* (a-ba)*dt;
+    	  //std::cout << "Accel Integdral: \n" << accelIntegral << std::endl;
     	  Vector3d gravityIntegral = g*dt;
     	  Vector3d deltaV = accelIntegral + gravityIntegral;
 

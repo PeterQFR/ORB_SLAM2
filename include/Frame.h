@@ -163,6 +163,9 @@ public:
     Eigen::Vector3d mBiasGyro;
     Eigen::Vector3d mBiasAccel;
 
+    //Imu Information is based on a diagonal matrix of variances bias variances.
+
+
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
     DBoW2::FeatureVector mFeatVec;
