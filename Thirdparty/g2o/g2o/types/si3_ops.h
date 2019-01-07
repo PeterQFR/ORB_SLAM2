@@ -34,9 +34,13 @@ namespace g2o {
 	inline Matrix3d exp(const Vector3d& wdt)
 	{
 		double length = wdt.norm();
+		Vector3d unit = Vector3d::Zero();
 		if (fabs(length) < 1e-6)
-			length=1.0;
-		Vector3d unit = wdt/length;
+		{
+			return Matrix3d::Identity();
+		}
+		else
+		   unit= wdt/length;
 		Matrix3d skewMatrix = skew(unit);
 		return Matrix3d::Identity()*cos(length) + sin(length) * skewMatrix +
 				(1- cos(length))*skewMatrix*skewMatrix.transpose();
@@ -44,12 +48,17 @@ namespace g2o {
 
 	inline Vector3d log(const Matrix3d& R)
 	{
-		double phi = acos((R.trace() -1)/2);
+		double trace = (R.trace() -1)/2;
+		trace = std::max(-1.0, std::min(trace, 1.0));
+		double phi = acos(trace);
 		Vector3d unit = Vector3d::Zero();
 		unit(0)=R(2,1)-R(1,2);
 		unit(1)=R(0,2)-R(2,0);
 		unit(2)=R(1,0)-R(0,1);
-		unit /= 2*sin(phi);
+		if (sin(phi) < 1e-6)
+			unit /= 2;
+		else
+			unit /= 2*sin(phi);
 		return unit*phi;
 	}
 

@@ -208,7 +208,7 @@ public:
 		Matrix3d Ribw = xi.rotation().conjugate().toRotationMatrix();
 		Matrix3d Rjwb = xj.rotation().toRotationMatrix();
 		Matrix3d dRot = preIntegral.rotation().toRotationMatrix();
-		Vector3d eR = log((dRot*exp(_gJdR*bgj)).transpose()*Ribw*Rjwb);
+		Vector3d eR = log((dRot*exp(_gJdR*bgj))*Ribw*Rjwb);
 		Vector3d eV = Ribw *(vj - vi - g*_dt) - (preIntegral.velocity() +
 				_gJdv*bgj + _aJdv*baj);
 		Vector3d eP = Ribw*(xj.translation() - xi.translation() - vi*_dt - 0.5*g*_dt*_dt) -
@@ -269,8 +269,8 @@ public:
 		 */
 		for (unsigned int k =0; k< accel.size(); k++)
 		{
-			_dt += dts[k];
-			double dt = dts[k];
+			_dt += fabs(dts[k]);
+			double dt = fabs(dts[k]);
 			anchor.preIntegrate(accel[k], gyro[k], dt);
 
 
@@ -281,13 +281,13 @@ public:
 
 			covariance = covarianceMatrix(covariance,
 					calculateAMatrix(Rik, integrator, dt),
-					calculateBMatrix(Rik, rightJacobian(gyro[k]*0.01), dt));
+					calculateBMatrix(Rik, rightJacobian(gyro[k]), dt));
 
 
 			//Here is a good place to now calculate the Jacobians for this
 			//step.
 
-			_gJdR += -(Rik.transpose()*rightJacobian(gyro[k]*0.01)*dt);
+			_gJdR += -(Rik.transpose()*rightJacobian(gyro[k])*dt);
 
 			Matrix3d accelSkew = integrator*_gJdR;
 
