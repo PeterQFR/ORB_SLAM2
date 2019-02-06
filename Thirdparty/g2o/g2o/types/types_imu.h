@@ -65,6 +65,17 @@ struct StateInfo {
 	Vector3d bg;
 	Vector3d ba;
 	double stamp;
+
+	bool write(std::ostream& os) const
+	{
+		os << "Pose Translation: "<< "Time: "<< stamp << std::endl << pose.translation() << std::endl <<
+				"Pose Orientaton: "<< std::endl << pose.rotation().toRotationMatrix() << std::endl <<
+				"Velocity: "<< std::endl << vel << std::endl <<
+				"AV Bias: "<< std::endl << ba << std::endl <<
+				"WG Bias: "<< std::endl << bg << std::endl;
+
+		return os.good();
+	}
 };
 
 struct InertialMeasurement {
@@ -178,7 +189,7 @@ public:
 		_zetaNoise.block(0,0,3,3) =ng*Matrix3d::Identity();
 		_zetaNoise.block(3,3,3,3) = na*Matrix3d::Identity();
 
-
+		this->_information = Matrix<double, 15, 15>::Identity();
 		this->_information.block(9,9,3,3) = (1.0/nba)*Matrix3d::Identity();
 		this->_information.block(12,12,3,3) = (1.0/nbg)*Matrix3d::Identity();
 
